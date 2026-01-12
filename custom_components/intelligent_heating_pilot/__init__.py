@@ -368,12 +368,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("[%s] HA started, triggering initial update", entry.entry_id)
         hass.async_create_task(coordinator.async_update())
     
-    # If HA already started, trigger update in background, otherwise wait
+    # Trigger initial update in background in both cases (HA started or not)
     # IMPORTANT: We use async_create_task instead of await to prevent blocking
     # the setup process. This avoids watchdog timeouts when the initial update
     # takes a long time (e.g., extracting heating cycles from recorder).
     if hass.is_running:
-        _LOGGER.debug("[%s] HA already running, scheduling initial update in background", entry.entry_id)
+        _LOGGER.debug("[%s] HA already running, triggering initial update in background", entry.entry_id)
         hass.async_create_task(coordinator.async_update())
     else:
         _LOGGER.debug("[%s] Waiting for HA start event before first update", entry.entry_id)

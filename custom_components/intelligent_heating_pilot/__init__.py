@@ -22,9 +22,9 @@ from .application import HeatingApplicationService
 from .const import (
     CONF_CLOUD_COVER_ENTITY,
     CONF_CYCLE_SPLIT_DURATION_MINUTES,
+    CONF_DATA_RETENTION_DAYS,
     CONF_HUMIDITY_IN_ENTITY,
     CONF_HUMIDITY_OUT_ENTITY,
-    CONF_DATA_RETENTION_DAYS,
     CONF_LHS_RETENTION_DAYS,
     CONF_MAX_CYCLE_DURATION_MINUTES,
     CONF_MIN_CYCLE_DURATION_MINUTES,
@@ -41,11 +41,11 @@ from .const import (
 )
 from .infrastructure.adapters import (
     HAClimateCommander,
+    HACycleCache,
     HAEnvironmentReader,
     HAModelStorage,
     HASchedulerCommander,
     HASchedulerReader,
-    HACycleCache,
 )
 from .infrastructure.event_bridge import HAEventBridge
 from .view import async_register_http_views
@@ -205,9 +205,6 @@ class IntelligentHeatingPilotCoordinator:
             self._vtherm_entity,
             len(self._scheduler_entities),
         )
-        
-        # Trigger initial calculation for sensors
-        await self.async_update()
     
     def setup_listeners(self) -> None:
         """Setup event listeners via event bridge."""
@@ -371,10 +368,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("[%s] HA started, triggering initial update", entry.entry_id)
         hass.async_create_task(coordinator.async_update())
     
-    # If HA already started, trigger update immediately, otherwise wait
+    # Trigger initial update in background in both cases (HA started or not)
+    # IMPORTANT: We use async_create_task instead of await to prevent blocking
+    # the setup process. This avoids watchdog timeouts when the initial update
+    # takes a long time (e.g., extracting heating cycles from recorder).
     if hass.is_running:
-        _LOGGER.debug("[%s] HA already running, triggering update now", entry.entry_id)
-        await coordinator.async_update()
+        _LOGGER.debug("[%s] HA already running, triggering initial update in background", entry.entry_id)
+        hass.async_create_task(coordinator.async_update())
     else:
         _LOGGER.debug("[%s] Waiting for HA start event before first update", entry.entry_id)
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _ha_started)
